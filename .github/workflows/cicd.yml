@@ -157,10 +157,10 @@ jobs:
       run: |
         if [ "${{ inputs.environment }}" == "DEV" ];
         then
-          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"mule.env"="${{ secrets.dev_mule_env }}" -D"mule.key"="${{ secrets.dev_mule_key }}" -D"application.name"="pb-mulesoft-cicd-assignment-dev"
+          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"application.name"="pb-mulesoft-cicd-assignment-dev"
         elif [ "${{ inputs.environment }}" == "UAT" ];
         then
-          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"mule.env"="${{ secrets.uat_mule_env }}" -D"mule.key"="${{ secrets.uat_mule_key }}" -D"application.name"="pb-mulesoft-cicd-assignment-uat"
+          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"application.name"="pb-mulesoft-cicd-assignment-uat"
         else
-          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"mule.env"="${{ secrets.prod_mule_env }}" -D"mule.key"="${{ secrets.prod_mule_key }}" -D"application.name"="pb-mulesoft-cicd-app"
+          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"application.name"="pb-mulesoft-cicd-assignment-app"
         fi
