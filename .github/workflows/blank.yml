@@ -1,0 +1,166 @@
+# The name of the workflow, which is displayed in the GitHub Actions tab. This helps identify the workflow's purpose.
+name: "PB-Maven Github Actions App Deployment Workflow"
+
+# Trigger the workflow manually using the workflow_dispatch event with inputs for environment, Java version, and commit message
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment Environment"
+        required: true
+        type: choice
+        options:
+          - DEV
+          - UAT
+          - PROD
+      java:
+        description: "Java Version"
+        required: true
+        type: choice
+        options:
+          - '8'
+          - '17'
+      commit:
+        description: "Commit Message"
+        required: true
+        type: string
+
+# Display the commit message, environment, and project name in the run name for better traceability
+run-name: "Commit: ${{ inputs.commit }} | Environment: ${{ inputs.environment }} | maven-github-actions-app"
+
+jobs:
+  # Testing job
+  Test:
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout the code from the repository
+    - name: "Checkout Repository ${{ github.repository }}"
+      uses: actions/checkout@v4
+    # Cache Maven dependencies to avoid downloading them every time and speed up the workflow
+    - name: "Cache Dependencies"
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/${{ inputs.environment }}/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    # Setup the specified Java version
+    - name: "Setup Java ${{ inputs.java }}"
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '${{ inputs.java }}'
+    - name: Setup Maven
+      uses: stCarolas/setup-maven@v5
+      with:
+        maven-version: 3.9.6
+    # Run tests with Maven, passing environment-specific parameters (Application Env and Key)
+    - name: "Test with Maven"
+      env:
+        connectedAppId: ${{ secrets.connected_app_id }}
+        connectedAppSecret: ${{ secrets.connected_app_secret }}
+      run: |
+        if [ "${{ inputs.environment }}" == "DEV" ];
+        then
+          mvn clean test -D"mule.env"="${{ secrets.dev_mule_env }}" -D"mule.key"="${{ secrets.dev_mule_key }}" --settings settings/settings.xml
+        elif [ "${{ inputs.environment }}" == "UAT" ];
+        then
+          mvn clean test -D"mule.env"="${{ secrets.uat_mule_env }}" -D"mule.key"="${{ secrets.uat_mule_key }}" --settings settings/settings.xml
+        else
+          mvn clean test -D"mule.env"="${{ secrets.prod_mule_env }}" -D"mule.key"="${{ secrets.prod_mule_key }}" --settings settings/settings.xml
+        fi
+    # Upload the MUnit test report to GitHub after the tests are executed
+    - name: "Upload MUnit Report"
+      uses: actions/upload-artifact@v4
+      with:
+        name: "Munit Report"
+        path: target/site/munit/coverage
+        retention-days: 2
+
+  # Build job that runs after tests are completed to build the application
+  Build:
+    needs: Test
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout the code from the repository
+    - name: "Checkout Repository ${{ github.repository }}"
+      uses: actions/checkout@v4
+    # Cache Maven dependencies to speed up the build process
+    - name: "Cache Dependencies"
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/${{ inputs.environment }}/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    # Setup the specified Java version
+    - name: "Setup Java ${{ inputs.java }}"
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '${{ inputs.java }}'
+    - name: Setup Maven
+      uses: stCarolas/setup-maven@v5
+      with:
+        maven-version: 3.9.6
+    # Build the application with Maven, skipping tests as they've already been run
+    - name: "Build with Maven"
+      run: |
+        if [ "${{ inputs.environment }}" == "DEV" ];
+        then
+          mvn -B package --file pom.xml -D"mule.env"="${{ secrets.dev_mule_env }}" -D"mule.key"="${{ secrets.dev_mule_key }}" -DskipTests
+        elif [ "${{ inputs.environment }}" == "UAT" ];
+        then
+          mvn -B package --file pom.xml -D"mule.env"="${{ secrets.uat_mule_env }}" -D"mule.key"="${{ secrets.uat_mule_key }}" -DskipTests
+        else
+          mvn -B package --file pom.xml -D"mule.env"="${{ secrets.prod_mule_env }}" -D"mule.key"="${{ secrets.prod_mule_key }}" -DskipTests
+        fi
+    # Upload the built JAR artifact for use in subsequent jobs
+    - name: "Upload Artifact" 
+      uses: actions/upload-artifact@v4
+      with:
+          name: "Artifacts"
+          path: target/*.jar
+          retention-days: 1
+
+  # Deployment to CloudHub 1.0
+  Deploy-To-CloudHub:
+    needs: Build
+    runs-on: ubuntu-latest
+    steps:
+    # Checkout the code from the repository
+    - name: "Checkout Repository ${{ github.repository }}"
+      uses: actions/checkout@v4
+    # Cache Maven dependencies for CloudHub 1.0 deployment
+    - name: "Cache Dependencies"
+      uses: actions/cache@v4
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/${{ inputs.environment }}/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+    # Download the JAR file for deployment
+    - name: "Download the JAR File"
+      uses: actions/download-artifact@v4
+      with:
+        name: "Artifacts"
+    - name: Setup Maven
+      uses: stCarolas/setup-maven@v5
+      with:
+        maven-version: 3.9.6
+    # Deploy the application to CloudHub 1.0 based on the environment specified in inputs
+    - name: "Deploy to ${{ inputs.environment }}"
+      env:
+        connectedAppId: ${{ secrets.connected_app_id }}
+        connectedAppSecret: ${{ secrets.connected_app_secret }}
+        grantType: ${{ secrets.grant_type }}
+      run: |
+        if [ "${{ inputs.environment }}" == "DEV" ];
+        then
+          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"mule.env"="${{ secrets.dev_mule_env }}" -D"mule.key"="${{ secrets.dev_mule_key }}" -D"application.name"="pb-mulesoft-cicd-assignment-dev"
+        elif [ "${{ inputs.environment }}" == "UAT" ];
+        then
+          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"mule.env"="${{ secrets.uat_mule_env }}" -D"mule.key"="${{ secrets.uat_mule_key }}" -D"application.name"="pb-mulesoft-cicd-assignment-uat"
+        else
+          mvn clean deploy -DskipTests -DmuleDeploy -DClientId="$connectedAppId" -DClientSecret="$connectedAppSecret" -DjavaVersion="${{ inputs.java }}" -DGrantType="$grantType" -Denvironment="${{ inputs.environment }}" -D"mule.env"="${{ secrets.prod_mule_env }}" -D"mule.key"="${{ secrets.prod_mule_key }}" -D"application.name"="pb-mulesoft-cicd-app"
+        fi
