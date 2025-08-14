@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<flow name="mule-cicd-demoFlow" doc:id="17c30a5d-4226-4199-9476-0fc44433ac84" >
+		<scheduler doc:name="Scheduler" doc:id="eaf5a65a-c114-43a4-81dd-c8e72581eb0d" >
+			<scheduling-strategy >
+				<fixed-frequency />
+			</scheduling-strategy>
+		</scheduler>
+		<logger level="INFO" doc:name="Logger" doc:id="6b0e5075-8429-428d-86dd-7bde36620de5" message='#["This is my CICD application"]'/>
+	</flow>
+</mule>
